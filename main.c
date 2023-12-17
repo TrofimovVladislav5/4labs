@@ -17,26 +17,39 @@ typedef struct{
     int count;
 } Text;
 
-Sentence* readSentence(){
-    Sentence* sentence = (Sentence*)malloc(sizeof(Sentence));
+Sentence* createSentence(){
+    Sentence* sentence = (Sentence*) malloc(sizeof(Sentence));
     sentence->str = NULL;
     sentence->size = 0;
     return sentence;
 }
 
+Text* createText(){
+    Text* text = (Text*) malloc(sizeof(Text));
+    text->sentences = (Sentence*) malloc(sizeof(Sentence));
+    text->size = 0;
+    text->count = 0;
+    return text;
+}
 void getCommand(int* command){
     wscanf(L"%d", command);
 }
 
 int getWords(wchar_t sentence[]) {
     int wordCount = 0;
-    wchar_t sep[] = L" .,\t";
+    wchar_t sep[] = L" .,";
     for (int i = 0; i < wcslen(sentence); i++) {
         if (!wcschr(sep, sentence[i]) && (wcschr(sep, sentence[i + 1]) || sentence[i + 1] == L'\0')) {
             wordCount++;
         }
     }
     return wordCount;
+}
+
+void wordToUpper(wchar_t* string) {
+    for (int i = 0; i < wcslen(string);i++){
+        string[i] = towupper(string[i]);
+    }
 }
 
 void deleteLongSentences(Text* text) {
@@ -49,14 +62,17 @@ void deleteLongSentences(Text* text) {
 
 void replaceEnding(wchar_t* word){
     int wordLen = wcslen(word);
+    wchar_t* copy = (wchar_t*) calloc(wcslen(word) + 1, sizeof(wchar_t));
+    wcscpy(copy,word);
+    wordToUpper(copy);
     if (wordLen >= 4) {
-        if (wcscmp(&word[wordLen - 4], L"ться") == 0){
+        if (wcscmp(&copy[wordLen - 4], L"ТЬСЯ") == 0){
             wcscpy(&word[wordLen - 4], L"тся");
             return;
         }
     }
     if (wordLen >= 3) {
-        if (wcscmp(&word[wordLen - 3], L"тся") == 0){
+        if (wcscmp(&copy[wordLen - 3], L"ТСЯ") == 0){
             word = (wchar_t*) realloc(word, wordLen+2);
             wcscpy(&word[wordLen - 3], L"ться");
             word[wordLen + 1] = L'\0';
@@ -65,25 +81,21 @@ void replaceEnding(wchar_t* word){
 }
 
 void changeTense(Text* text){
-    for (int i = 0;i < text->count;i++){
-        for(int k = 0;k < text->sentences[i].wordCount;k++){
-            replaceEnding(text->sentences[i].words[k]);
+    for (int i = 0;i < text->count;i++) {
+        if (text->sentences[i].str != NULL){
+            for(int k = 0;k < text->sentences[i].wordCount;k++){
+                replaceEnding(text->sentences[i].words[k]);
+            }
         }
     }
 }
 
-void wordToUpper(wchar_t* string) {
-    for (int i = 0; i < wcslen(string);i++){
-        string[i] = towupper(string[i]);
-    }
-}
-
 void findWordInOtherSentences(Text* text) {
-    if (text->sentences[0].wordCount >= 2){
+    if (text->sentences[0].wordCount >= 2 && text->sentences[0].str != NULL){
         wchar_t* copy = (wchar_t*) calloc(wcslen(text->sentences[0].words[1]) + 1, sizeof(wchar_t));
         wcscpy(copy,text->sentences[0].words[1]);
         wordToUpper(copy);
-        for (int i = 1; i < text->count;i++){
+        for (int i = 0; i < text->count;i++){
             if (text->sentences[i].str != NULL) {
                 for (int j = 0;j < text->sentences[i].wordCount;j++) {
                     wchar_t* copy_j = (wchar_t*) calloc(wcslen(text->sentences[i].words[j]) + 1, sizeof(wchar_t));
@@ -99,7 +111,7 @@ void findWordInOtherSentences(Text* text) {
                 wprintf(L"\n");
             }
         }
-    }    
+    }
 }
 
 int cmp(const void* a, const void* b){
@@ -129,14 +141,6 @@ void deleteDuplicates(Text* text) {
             }
         }
     }
-}
-
-Text* createText(){
-    Text* text = (Text*)malloc(sizeof(Text));
-    text->sentences = (Sentence*)malloc(sizeof(Sentence));
-    text->size = 0;
-    text->count = 0;
-    return text;
 }
 
 wchar_t* input(int* count){
@@ -185,13 +189,14 @@ void splitText(Text* text, wchar_t* input){
 void splitSentence(Text* text) {
     wchar_t* sep = L" .,";
     wchar_t* copy;
+    wchar_t* ptr;
     int len = 0;
     for (int i = 0; i < text->count; i++) {
         len = wcslen(text->sentences[i].str);
-        copy = wcsdup(text->sentences[i].str);
+        wchar_t* copy = (wchar_t*) calloc(wcslen(text->sentences[i].str) + 1, sizeof(wchar_t));
+        wcscpy(copy, text->sentences[i].str);
         text->sentences[i].words = (wchar_t**) malloc(text->sentences[i].wordCount * sizeof(wchar_t*));
         text->sentences[i].punctuations = (wchar_t**) malloc(text->sentences[i].wordCount * sizeof(wchar_t*));
-        wchar_t* ptr;
         wchar_t* word = wcstok(copy, sep, &ptr);
         int j = 0;
         while (word != NULL) {
@@ -238,23 +243,27 @@ void output(Text* text, int value){
     }
 }
 
-int main(){
-    setlocale(LC_CTYPE,"");
+void help(){
+    wprintf(L"Функция 0: Вывод текста после первичной обязательной обработки.\nФункция 1: Изменить все слова в тексте заканчивающиеся на “ться” так чтобы они заканчивались на “тся” и наоборот.\nФункция 2: Вывести все предложения в которых встречается второе слово первого предложения. Данное слово необходимо выделить зеленым цветом.\nФункция 3: Отсортировать предложения по возрастанию количества слов в предложении.\nФункция 4: Удалить все предложения в которых больше 10 слов.\nФункция 5: Вывод справки о функциях, которые реализует программа.\n");
+}
+
+void commandError(){
+    wprintf(L"\033[1;31mError: Введённая команда не существует. Для ознакомления с командами введите 5.\033[0m\n");
+}
+
+void courseWorkInfo(){
     wprintf(L"Course work for option 5.9, created by Trofimov Vladislav.\n");
-    int command;
-    getCommand(&command);
-    Text* text = createText();
-    wchar_t* input_text = input(&(text->count));
-    splitText(text,input_text);
-    deleteDuplicates(text);
-    switch(command){
+}
+
+void selectionWithText(Text* text,int value){
+    switch(value){
         case 0:
-            output(text,command);
+            output(text,value);
             break;
         case 1:
             splitSentence(text);
             changeTense(text);
-            output(text,command);
+            output(text,value);
             break;
         case 2:
             splitSentence(text);
@@ -262,17 +271,36 @@ int main(){
             break;
         case 3:
             qsort(text->sentences,text->count,sizeof(Sentence),cmp);
-            output(text,command);
+            output(text,value);
         case 4:
             deleteLongSentences(text);
-            output(text,command);
-            break;
-        case 5:
-            wprintf(L"Функция 0: Вывод текста после первичной обязательной обработки.\nФункция 1: Изменить все слова в тексте заканчивающиеся на “ться” так чтобы они заканчивались на “тся” и наоборот.\nФункция 2: Вывести все предложения в которых встречается второе слово первого предложения. Данное слово необходимо выделить зеленым цветом.\nФункция 3: Отсортировать предложения по возрастанию количества слов в предложении.\nФункция 4: Удалить все предложения в которых больше 10 слов.\nФункция 5: Вывод справки о функциях, которые реализует программа.\n");
-            break;
-        default:
-            wprintf(L"\033[1;31mError: Введённая команда не существует. Для ознакомления с командами введите 5.\033[0m\n");
+            output(text,value);
             break;
     }
-    int* x = (int*) calloc(10, sizeof(int));
+}
+
+int checkPresentText(int value){
+    if (value == 5){
+        help();
+        return 0;
+    }
+    if (value >= 0 && value < 5){
+        return 1;
+    }
+    commandError();
+    return 0;
+}
+
+int main(){
+    setlocale(LC_CTYPE,"");
+    courseWorkInfo();
+    int command;
+    getCommand(&command);
+    if (checkPresentText(command)) {
+        Text* text = createText();
+        wchar_t* input_text = input(&(text->count));
+        splitText(text,input_text);
+        deleteDuplicates(text);
+        selectionWithText(text,command);
+    }
 }
