@@ -48,9 +48,18 @@ private:
         width = png_get_image_width(png_ptr, info_ptr);
         height = png_get_image_height(png_ptr, info_ptr);
         bit_depth = png_get_bit_depth(png_ptr, info_ptr);
+        color_type = png_get_color_type(png_ptr, info_ptr);
         number_of_passes = png_set_interlace_handling(png_ptr);
     }
 
+    void transforImage() {
+        if (color_type == PNG_COLOR_TYPE_RGB || 
+        color_type == PNG_COLOR_TYPE_GRAY || 
+        color_type == PNG_COLOR_TYPE_PALETTE) {
+            png_set_filler(png_ptr, 0xFF, PNG_FILLER_AFTER);
+            png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+        }
+    }
 public:
     ImageFileReader() {
         width = 0;
@@ -84,10 +93,21 @@ public:
         png_set_sig_bytes(png_ptr, 8);
         png_read_info(png_ptr, info_ptr);
         getPngParam();
+        transforImage();
+        png_read_update_info(png_ptr, info_ptr);
+        getPngParam();
         number_of_passes = png_set_interlace_handling(png_ptr);
         allocateRowPointers();
         png_read_image(png_ptr, row_pointers);
         fclose(input_png);
+    }
+
+    int getWidth() {
+        return width;
+    }
+
+    int getHeight() {
+        return height;
     }
 
     void write(const char* filename) {
@@ -95,7 +115,7 @@ public:
         png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
         png_infop info_ptr = png_create_info_struct(png_ptr);
         png_init_io(png_ptr, output_png);
-        png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+        png_set_IHDR(png_ptr, info_ptr, width, height, bit_depth, color_type, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
         png_write_info(png_ptr, info_ptr);
         png_write_image(png_ptr, row_pointers);
         png_write_end(png_ptr, nullptr);
@@ -115,10 +135,10 @@ public:
     
     Rgbacolour getPixel(std::pair<int, int> coordinates) {
         Rgbacolour colourPixel(0,0,0);
-        colourPixel.red = row_pointers[coordinates.second][coordinates.first + 0];
-        colourPixel.green = row_pointers[coordinates.second][coordinates.first + 1];
-        colourPixel.blue = row_pointers[coordinates.second][coordinates.first + 2];
-        colourPixel.alpha = row_pointers[coordinates.second][coordinates.first + 3];
+        colourPixel.red = row_pointers[coordinates.second][coordinates.first * 4 + 0];
+        colourPixel.green = row_pointers[coordinates.second][coordinates.first * 4 + 1];
+        colourPixel.blue = row_pointers[coordinates.second][coordinates.first * 4 + 2];
+        colourPixel.alpha = row_pointers[coordinates.second][coordinates.first *4  + 3];
         return colourPixel;
     }
 };
@@ -157,25 +177,12 @@ public:
     std::vector<std::pair<int, int>> getAreaCoordinates() override;
 };
 
-// class Rectangle : public Shape
-// {
-// private:
-//     std::pair<int, int> upperLeft;
-//     std::pair<int, int> lowerRight;
-
-// public:
-//     Rectangle(std::pair<int, int>, std::pair<int, int>);
-//     std::vector<std::pair<int, int>> getBorderCoordinates() override;
-//     std::vector<std::pair<int, int>> getAreaCoordinates() override;
-// };
-
 class Rectangle : public Shape {
 private:
     std::pair<int, int> upperLeft;
     std::pair<int, int> lowerRight;
 public:
     Rectangle(std::pair<int, int>, std::pair<int, int>);
-
     std::vector<std::pair<int, int>> getBorderCoordinates() override;
     std::vector<std::pair<int, int>> getAreaCoordinates() override;
 };
@@ -203,16 +210,16 @@ public:
         int min_x = std::min(upper.first, lower.first);
         int max_y = std::max(upper.second, lower.second);
         int min_y = std::min(upper.second, lower.second);
-        std::pair<int, int> upperLeft = std::make_pair(min_x, max_y);
-        std::pair<int, int> lowerRight = std::make_pair(max_x, min_y);
-        std::pair<int, int> destUpperLeft = dest;
+        upperLeft = std::make_pair(min_x, min_y);
+        lowerRight = std::make_pair(max_x, max_y);
+        destUpperLeft = dest;
     }
 
     std::vector<std::pair<int, int>> getSourceCoordiantes() {
         std::vector<std::pair<int, int>> sourceCoordinates;
-        for (int y = lowerRight.second; y <= upperLeft.second;y++){
+        for (int y = upperLeft.second; y <= lowerRight.second;y++){
             for (int x = upperLeft.first; x <= lowerRight.first;x++){
-                sourceCoordinates.emplace_back(x,y);
+                sourceCoordinates.push_back({x,y});
             }
         }
         return sourceCoordinates;
@@ -220,10 +227,10 @@ public:
 
     std::vector<std::pair<int, int>> getDestinationCoordinates() {
         std::vector<std::pair<int, int>> destinationCoordinates;
-        std::pair<int, int> copyDimension = std::make_pair(lowerRight.first - upperLeft.first, upperLeft.second - lowerRight.second);
-        for (int y = destUpperLeft.second - copyDimension.second; y <= destUpperLeft.second;y++){
+        std::pair<int, int> copyDimension = std::make_pair(lowerRight.first - upperLeft.first, lowerRight.second - upperLeft.second);
+        for (int y = destUpperLeft.second; y <= destUpperLeft.second +  copyDimension.second;y++){
             for (int x = destUpperLeft.first; x <= destUpperLeft.first + copyDimension.first;x++){
-                destinationCoordinates.emplace_back(x, y);
+                destinationCoordinates.push_back({x, y});
             }
         }
         return destinationCoordinates;
@@ -242,7 +249,7 @@ std::vector<std::pair<int, int>> Shape::getBorderCoordinates(int thickness) {
         return initialCoordinates;
     std::vector<std::pair<int, int>> result;
     for (std::pair<int, int> coordinate : initialCoordinates) {
-        int radius = floor(thickness + 1 / 2);
+        int radius = thickness / 2;
         Shape *circle = new Circle(coordinate, radius);
         std::vector<std::pair<int, int>> circlePixels = circle->getBorderCoordinates();
         std::vector<std::pair<int, int>> circleAreaPixels = circle->getAreaCoordinates();
@@ -324,20 +331,17 @@ std::vector<std::pair<int, int>> Circle::getBorderCoordinates() {
 
 std::vector<std::pair<int, int>> Circle::getAreaCoordinates() {
     std::vector<std::pair<int, int>> result;
-    int left = center.first - radius;
-    int right = left + radius * 2;
-    int top = center.second - radius;
-    int bottom = top + radius * 2;
-
-    for (int j = top; j <= bottom; ++j) {
-        for (int k = left; k <= right; ++k) {
-            double dist = pow(center.first - k, 2) + pow(center.second - j, 2);
-            if (dist < pow(radius, 2)) result.emplace_back(k, j);
+    std::vector<std::pair<int, int>> borderCoordinates = getBorderCoordinates();
+    for (int x = center.first - radius; x <= center.first + radius; ++x) {
+        for (int y = center.second - radius; y <= center.second + radius; ++y) {
+            if (std::pow(x - center.first, 2) + std::pow(y - center.second, 2) <= std::pow(radius, 2)) {
+                result.emplace_back(x, y);
+            }
         }
     }
-
     return result;
 }
+
 
 // std::vector<std::pair<int, int>> Circle::getAreaCoordinates() {
 //     std::vector<std::pair<int, int>> result;
@@ -402,8 +406,8 @@ Rectangle::Rectangle(std::pair<int, int> first, std::pair<int, int> second) {
     int min_x = std::min(first.first, second.first);
     int max_y = std::max(first.second, second.second);
     int min_y = std::min(first.second, second.second);
-    upperLeft = std::make_pair(min_x, max_y); 
-    lowerRight = std::make_pair(max_x, min_y); 
+    upperLeft = std::make_pair(min_x, min_y); 
+    lowerRight = std::make_pair(max_x, max_y); 
 }
 
 std::vector<std::pair<int, int>> Rectangle::getBorderCoordinates() {
@@ -423,7 +427,7 @@ std::vector<std::pair<int, int>> Rectangle::getBorderCoordinates() {
 
 std::vector<std::pair<int, int>> Rectangle::getAreaCoordinates() {
     std::vector<std::pair<int, int>> result;
-    for (int y = lowerRight.second + 1; y < upperLeft.second; y++) {
+    for (int y = upperLeft.second + 1; y < lowerRight.second; y++) {
         for (int x = upperLeft.first + 1; x < lowerRight.first; x++) {
             result.emplace_back(x, y);
         }
@@ -479,6 +483,10 @@ std::vector<std::pair<int, int>> Polygon::getAreaCoordinates() {
             {
                 borders_x.first = std::min(borders_x.first, coordinate.first);
                 borders_x.second = std::max(borders_x.second, coordinate.first);
+                for (int x = borders_x.first + 1; x < borders_x.second; x++)
+                {
+                    result.emplace_back(x, y);
+                }
             }
         }
         for (int x = borders_x.first + 1; x < borders_x.second; x++)
@@ -489,28 +497,55 @@ std::vector<std::pair<int, int>> Polygon::getAreaCoordinates() {
     return result;
 }
 
-
 int main() {
-    const char *input_file = "cubix.png";
+    const char *input_file = "Copy.png";
     const char *output_file = "output.png";
     const Rgbacolour draw_colour(255, 0, 0);
     const Rgbacolour circle_colour(0, 0, 255);
-    std::pair<int, int> upperls = std::pair<int, int>(100, 200);
-    std::pair<int, int> lowerrs = std::pair<int, int>(300, 400);
-    Shape* rect = new Circle(upperls, 200);
+    std::pair<int, int> center = std::pair<int, int>(200, 100);
+    Shape* circle = new Circle(center, 300);
     ImageFileReader image;
     image.resolve(input_file);
-    std::vector<std::pair<int, int>> coordinates = rect->getBorderCoordinates(1000);
-    std::vector<std::pair<int, int>> coordinates_filled = rect->getAreaCoordinates();
+    std::vector<std::pair<int, int>> coordinates = circle->getBorderCoordinates(500);
+    std::vector<std::pair<int, int>> coordinates_f = circle->getAreaCoordinates();
     for (std::pair<int, int> coordinate : coordinates)
     {   
         image.savePixel(coordinate, draw_colour);
     }
-    for (std::pair<int, int> coordinate : coordinates_filled)
+    for (std::pair<int, int> coordinate : coordinates_f)
     {   
         image.savePixel(coordinate, circle_colour);
     }
     image.write(output_file);
-    delete rect;
+    delete circle;
     return 0;
 }
+
+// // int main() { под ICopy
+//     const char *input_file = "Copy.png";
+//     const char *output_file = "output.png";
+//     const Rgbacolour draw_colour(255, 0, 0);
+//     const Rgbacolour circle_colour(0, 0, 255);
+//     std::pair<int, int> uppers = std::pair<int, int>(100,50);
+//     std::pair<int, int> lowerrs = std::pair<int, int>(200, 100);
+//     std::pair<int, int> destination = std::pair<int, int>(0, 50);
+//     ICopy* rect = new ICopy(uppers, lowerrs, destination);
+//     ImageFileReader image;
+//     image.resolve(input_file);
+//     std::vector<std::pair<int, int>> coordinates = rect->getSourceCoordiantes();
+//     std::vector<std::pair<int, int>> coordinates_d = rect->getDestinationCoordinates();
+//     std::vector<Rgbacolour> colours;
+//     for (std::pair<int, int> coordinate : coordinates)
+//     {   
+//         image.savePixel(coordinate, draw_colour);
+//         colours.push_back(image.getPixel(coordinate));
+//     }
+//     for (int i = 0; i < coordinates_d.size();i++)
+//     {   
+//         printf("%d %d %d %d\n", colours[i].red, colours[i].green, colours[i].blue, colours[i].alpha);
+//         image.savePixel(coordinates_d[i], colours[i]);
+//     }
+//     image.write(output_file);
+//     delete rect;
+//     return 0;
+// }
