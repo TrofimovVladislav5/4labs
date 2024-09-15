@@ -2,7 +2,7 @@
 
 UnrolledLinkedList::UnrolledLinkedList(int capacity){
     size = calculateOptimalNodeSize(capacity);
-    current_size = 0;
+    current_size = capacity;
     head = new Node(size);
 }
 
@@ -10,12 +10,11 @@ UnrolledLinkedList::~UnrolledLinkedList() = default;
 
 UnrolledLinkedList::UnrolledLinkedList(std::vector<int>& list){
     size = calculateOptimalNodeSize(list.size());
-    if (size == 0){
-        head = nullptr;
-    }
-    else{
-        head = new Node(size);
-    }
+    current_size = static_cast<int>(list.size());
+
+    if (size == 0) head = nullptr;
+    else head = new Node(size);
+
     Node* current = head;
     for (int i = 0;i < (int) list.size();i++){
         if (current->getCurrentNodeSize() == size / 2){
@@ -64,7 +63,7 @@ void UnrolledLinkedList::pop(int index){
 
     current->pop(index);
     if (current->getCurrentNodeSize() < size / 2){
-        if (current->next){
+        if (current->next) {
             if (current->next->getCurrentNodeSize() <= size / 2){
                 current->mergeNodes(current->next);
                 Node* temp = current->next;

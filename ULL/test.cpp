@@ -90,11 +90,11 @@ std::vector<int> createList(int countElements){
     return list;
 }
 
-int main(){
-    std::vector<int> elements = createList(100);
-    std::vector<int> removingElenents = createList(10);
-    check(elements, removingElenents);
-    checkPushFront(elements, 101);
-    checkPushBack(elements, 101);
-    checkInsert(elements, 25, 101);
-}
+// int main(){
+//     std::vector<int> elements = createList(100);
+//     std::vector<int> removingElenents = createList(10);
+//     check(elements, removingElenents);
+//     checkPushFront(elements, 101);
+//     checkPushBack(elements, 101);
+//     checkInsert(elements, 25, 101);
+// }

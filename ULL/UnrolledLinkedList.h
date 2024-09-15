@@ -20,8 +20,8 @@ public:
 
 private:
     int size;
-    int current_size;
     Node* head;
+    int current_size{};
 
     int calculateOptimalNodeSize(int num_elements);
 };

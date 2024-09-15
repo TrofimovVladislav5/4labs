@@ -1,5 +1,7 @@
 #include "Node.h"
 
+#include <iostream>
+
 Node::Node(int capacity){
     size = capacity;
     data = new int[size];
